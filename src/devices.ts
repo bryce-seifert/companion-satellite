@@ -1,14 +1,11 @@
 import { CompanionSatelliteClient } from './client'
 import { listStreamDecks, openStreamDeck, StreamDeck } from '@elgato-stream-deck/node'
-import * as usbDetect from 'usb-detection'
-// import EventEmitter = require('events')
+import { usb } from 'usb'
 import { CardGenerator } from './cards'
-import { listXencelabsQuickKeys, openXencelabsQuickKeys, XencelabsQuickKeys } from '@xencelabs-quick-keys/node'
+import { XencelabsQuickKeysManagerInstance, XencelabsQuickKeys } from '@xencelabs-quick-keys/node'
 import { DeviceId, WrappedDevice } from './device-types/api'
 import { StreamDeckWrapper } from './device-types/streamdeck'
 import { QuickKeysWrapper } from './device-types/xencelabs-quick-keys'
-
-const autoIdMap = new Map<string, string>()
 
 export class DeviceManager {
 	private readonly devices: Map<DeviceId, WrappedDevice>
@@ -22,9 +19,31 @@ export class DeviceManager {
 		this.devices = new Map()
 		this.cardGenerator = new CardGenerator()
 
-		usbDetect.startMonitoring()
-		usbDetect.on('add:4057', (dev) => this.foundDevice(dev))
-		usbDetect.on('remove:4057', (dev) => this.removeDevice(dev))
+		usb.on('attach', (dev) => {
+			if (dev.deviceDescriptor.idVendor === 0x0fd9) {
+				this.foundDevice(dev)
+			} else if (dev.deviceDescriptor.idVendor === 0x28bd) {
+				XencelabsQuickKeysManagerInstance.scanDevices().catch((e) => {
+					console.error(`Quickey scan failed: ${e}`)
+				})
+			}
+		})
+		usb.on('detach', (dev) => {
+			if (dev.deviceDescriptor.idVendor === 0x0fd9) {
+				this.removeDevice(dev)
+			}
+		})
+		// Don't block process exit with the watching
+		usb.unrefHotplugEvents()
+
+		XencelabsQuickKeysManagerInstance.on('connect', (dev) => {
+			this.tryAddQuickKeys(dev)
+		})
+		XencelabsQuickKeysManagerInstance.on('disconnect', (dev) => {
+			if (dev.deviceId) {
+				this.cleanupDeviceById(dev.deviceId)
+			}
+		})
 
 		this.statusString = 'Connecting'
 
@@ -85,7 +104,7 @@ export class DeviceManager {
 	}
 
 	public async close(): Promise<void> {
-		usbDetect.stopMonitoring()
+		// usbDetect.stopMonitoring()
 
 		// Close all the devices
 		await Promise.allSettled(Array.from(this.devices.values()).map((d) => d.close()))
@@ -97,8 +116,8 @@ export class DeviceManager {
 		return dev
 	}
 
-	private foundDevice(dev: usbDetect.Device): void {
-		console.log('Found a device', dev)
+	private foundDevice(dev: usb.Device): void {
+		console.log('Found a device', dev.deviceDescriptor)
 
 		// most of the time it is available now
 		this.scanDevices()
@@ -106,23 +125,30 @@ export class DeviceManager {
 		setTimeout(() => this.scanDevices(), 1000)
 	}
 
-	private removeDevice(dev: usbDetect.Device): void {
-		console.log('Lost a device', dev)
-		let dev2 = this.devices.get(dev.serialNumber)
-		// TODO - this won't work for quickkeys, and is brittle for streamdecks..
-
+	private removeDevice(_dev: usb.Device): void {
+		// Rescan after a short timeout
+		// setTimeout(() => this.scanDevices(), 100)
+		// console.log('Lost a device', dev.deviceDescriptor)
+		// this.cleanupDeviceById(dev.serialNumber)
+	}
+	private cleanupDeviceById(id: string): void {
+		const dev2 = this.devices.get(id)
 		if (dev2) {
 			// cleanup
-			this.devices.delete(dev.serialNumber)
-			this.client.removeDevice(dev.serialNumber)
-
-			dev2.close().catch(() => {
+			this.devices.delete(id)
+			this.client.removeDevice(id)
+			try {
+				dev2.close().catch(() => {
+					// Ignore
+				})
+			} catch (e) {
 				// Ignore
-			})
+			}
 		}
 	}
 
 	public registerAll(): void {
+		console.log('registerAll', Array.from(this.devices.keys()))
 		for (const [_, device] of this.devices.entries()) {
 			// If it is already in the process of initialising, core will give us back the same id twice, so we dont need to track it
 			// if (!devices2.find((d) => d[1] === serial)) { // TODO - do something here?
@@ -131,9 +157,7 @@ export class DeviceManager {
 			device.showStatus(this.client.host, this.statusString)
 
 			// Re-init device
-			if (device.ready) {
-				this.client.addDevice(device.deviceId, device.productName, device.getRegisterProps())
-			}
+			this.client.addDevice(device.deviceId, device.productName, device.getRegisterProps())
 
 			// }
 		}
@@ -147,9 +171,10 @@ export class DeviceManager {
 				this.tryAddStreamdeck(device.path, device.serialNumber)
 			}
 		}
-		for (const device of listXencelabsQuickKeys()) {
-			this.tryAddQuickKeys(device.path)
-		}
+
+		XencelabsQuickKeysManagerInstance.scanDevices().catch((e) => {
+			console.error(`Quick keys scan failed: ${e}`)
+		})
 	}
 
 	private async tryAddStreamdeck(path: string, serial: string) {
@@ -162,6 +187,7 @@ export class DeviceManager {
 				sd = openStreamDeck(path)
 				sd.on('error', (e) => {
 					console.error('device error', e)
+					this.cleanupDeviceById(serial)
 				})
 
 				const devInfo = new StreamDeckWrapper(serial, sd, this.cardGenerator)
@@ -173,55 +199,53 @@ export class DeviceManager {
 		}
 	}
 
-	private getAutoId(path: string, prefix: string): string {
-		const val = autoIdMap.get(path)
-		if (val) return val
+	// private getAutoId(path: string, prefix: string): string {
+	// 	const val = autoIdMap.get(path)
+	// 	if (val) return val
 
-		const nextId = autoIdMap.size + 1
-		const val2 = `${prefix}-${nextId.toString().padStart(3, '0')}`
-		autoIdMap.set(path, val2)
-		return val2
-	}
+	// 	const nextId = autoIdMap.size + 1
+	// 	const val2 = `${prefix}-${nextId.toString().padStart(3, '0')}`
+	// 	autoIdMap.set(path, val2)
+	// 	return val2
+	// }
 
-	private async tryAddQuickKeys(path: string) {
-		let surface: XencelabsQuickKeys | undefined
+	private async tryAddQuickKeys(surface: XencelabsQuickKeys) {
+		// TODO - support no deviceId for wired devices
+		if (!surface.deviceId) return
+
 		try {
-			const deviceId = this.getAutoId(path, 'xencelabs-quick-keys')
+			const deviceId = surface.deviceId
 			if (!this.devices.has(deviceId)) {
 				console.log(`adding new device: ${deviceId}`)
 				console.log(`existing = ${JSON.stringify(Array.from(this.devices.keys()))}`)
 
 				// TODO - this is race prone..
-				surface = await openXencelabsQuickKeys(path)
 				surface.on('error', (e) => {
 					console.error('device error', e)
+					this.cleanupDeviceById(deviceId)
 				})
 
 				const devInfo = new QuickKeysWrapper(deviceId, surface)
 				await this.tryAddDeviceInner(deviceId, devInfo)
 			}
 		} catch (e) {
-			console.log(`Open "${path}" failed: ${e}`)
-			if (surface) surface.close().catch(() => null)
+			console.log(`Open "${surface.deviceId}" failed: ${e}`)
 		}
 	}
 
 	private async tryAddDeviceInner(deviceId: string, devInfo: WrappedDevice): Promise<void> {
-		await devInfo.initDevice(this.client, this.statusString)
-
 		this.devices.set(deviceId, devInfo)
 
-		if (devInfo.ready) {
-			this.client.addDevice(deviceId, devInfo.productName, devInfo.getRegisterProps())
-		}
+		try {
+			await devInfo.initDevice(this.client, this.statusString)
 
-		devInfo.on('ready', (ready) => {
-			if (ready) {
-				this.client.addDevice(deviceId, devInfo.productName, devInfo.getRegisterProps())
-			} else {
-				this.client.removeDevice(deviceId)
-			}
-		})
+			this.client.addDevice(deviceId, devInfo.productName, devInfo.getRegisterProps())
+		} catch (e) {
+			// Remove the failed device
+			this.devices.delete(deviceId)
+
+			throw e
+		}
 	}
 
 	private showStatusCard(status?: string): void {
