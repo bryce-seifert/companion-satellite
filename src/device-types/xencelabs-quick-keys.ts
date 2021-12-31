@@ -5,15 +5,22 @@ import {
 	XencelabsQuickKeysDisplayOrientation,
 	WheelEvent,
 } from '@xencelabs-quick-keys/node'
-import EventEmitter = require('eventemitter3')
 import { CompanionSatelliteClient } from '../client'
-import { WrappedDevice, DeviceRegisterProps, DeviceDrawProps, WrappedDeviceEvents } from './api'
+import { WrappedDevice, DeviceRegisterProps, DeviceDrawProps } from './api'
 
-export class QuickKeysWrapper extends EventEmitter<WrappedDeviceEvents> implements WrappedDevice {
+function keyToCompanion(k: number): number | null {
+	if (k >= 0 && k < 4) return k + 1
+	if (k >= 4 && k < 8) return k + 3
+	if (k === 8) return 0
+	if (k === 9) return 5
+	return null
+}
+export class QuickKeysWrapper implements WrappedDevice {
 	readonly #surface: XencelabsQuickKeys
 	readonly #deviceId: string
 
 	#statusTimer: NodeJS.Timer | undefined
+	#unsub: (() => void) | undefined
 
 	public get deviceId(): string {
 		return this.#deviceId
@@ -21,18 +28,10 @@ export class QuickKeysWrapper extends EventEmitter<WrappedDeviceEvents> implemen
 	public get productName(): string {
 		return 'Xencelabs Quick Keys'
 	}
-	public get ready(): boolean {
-		return true // TODO
-	}
 
 	public constructor(deviceId: string, surface: XencelabsQuickKeys) {
-		super()
-
 		this.#surface = surface
 		this.#deviceId = deviceId
-
-		surface.on('connected', () => this.emit('ready', true))
-		surface.on('disconnected', () => this.emit('ready', false))
 	}
 
 	getRegisterProps(): DeviceRegisterProps {
@@ -45,33 +44,28 @@ export class QuickKeysWrapper extends EventEmitter<WrappedDeviceEvents> implemen
 		}
 	}
 	async close(): Promise<void> {
+		this.#unsub?.()
+
 		this.stopStatusInterval()
 
-		await this.#surface.close()
+		await this.#surface.stopData()
 	}
 	async initDevice(client: CompanionSatelliteClient, status: string): Promise<void> {
 		console.log('Registering key events for ' + this.deviceId)
 
-		const keyToCompanion = (k: number) => {
-			if (k >= 0 && k < 4) return k + 1
-			if (k >= 4 && k < 8) return k + 3
-			if (k === 8) return 0
-			if (k === 9) return 5
-			return null
-		}
-		this.#surface.on('down', (key) => {
+		const handleDown = (key: number) => {
 			const k = keyToCompanion(key)
 			if (k !== null) {
 				client.keyDown(this.deviceId, k)
 			}
-		})
-		this.#surface.on('up', (key) => {
+		}
+		const handleUp = (key: number) => {
 			const k = keyToCompanion(key)
 			if (k !== null) {
 				client.keyUp(this.deviceId, k)
 			}
-		})
-		this.#surface.on('wheel', (ev) => {
+		}
+		const handleWheel = (ev: WheelEvent) => {
 			switch (ev) {
 				case WheelEvent.Left:
 					client.keyUp(this.deviceId, 11)
@@ -80,7 +74,18 @@ export class QuickKeysWrapper extends EventEmitter<WrappedDeviceEvents> implemen
 					client.keyDown(this.deviceId, 11)
 					break
 			}
-		})
+		}
+
+		this.#surface.on('down', handleDown)
+		this.#surface.on('up', handleUp)
+		this.#surface.on('wheel', handleWheel)
+		this.#unsub = () => {
+			this.#surface.off('down', handleDown)
+			this.#surface.off('up', handleUp)
+			this.#surface.off('wheel', handleWheel)
+		}
+
+		await this.#surface.startData()
 
 		await this.#surface.setWheelSpeed(XencelabsQuickKeysWheelSpeed.Normal) // TODO dynamic
 		await this.#surface.setDisplayOrientation(XencelabsQuickKeysDisplayOrientation.Rotate0) // TODO dynamic

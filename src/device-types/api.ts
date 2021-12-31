@@ -18,14 +18,9 @@ export interface DeviceRegisterProps {
 	text: boolean
 }
 
-export type WrappedDeviceEvents = {
-	ready: [ready: boolean]
-}
-
-export interface WrappedDevice extends EventEmitter<WrappedDeviceEvents> {
+export interface WrappedDevice {
 	readonly deviceId: DeviceId
 	readonly productName: string
-	readonly ready: boolean
 
 	getRegisterProps(): DeviceRegisterProps
 

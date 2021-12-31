@@ -1,12 +1,11 @@
 import { StreamDeck } from '@elgato-stream-deck/node'
-import { EventEmitter } from 'eventemitter3'
 import sharp = require('sharp')
 import { CompanionSatelliteClient } from '../client'
 import { CardGenerator } from '../cards'
 import { ImageWriteQueue } from '../writeQueue'
-import { DeviceDrawProps, DeviceRegisterProps, WrappedDevice, WrappedDeviceEvents } from './api'
+import { DeviceDrawProps, DeviceRegisterProps, WrappedDevice } from './api'
 
-export class StreamDeckWrapper extends EventEmitter<WrappedDeviceEvents> implements WrappedDevice {
+export class StreamDeckWrapper implements WrappedDevice {
 	readonly #cardGenerator: CardGenerator
 	readonly #deck: StreamDeck
 	readonly #deviceId: string
@@ -20,13 +19,8 @@ export class StreamDeckWrapper extends EventEmitter<WrappedDeviceEvents> impleme
 	public get productName(): string {
 		return `Satellite StreamDeck: ${this.#deck.MODEL}`
 	}
-	public get ready(): boolean {
-		return true
-	}
 
 	public constructor(deviceId: string, deck: StreamDeck, cardGenerator: CardGenerator) {
-		super()
-
 		this.#deck = deck
 		this.#deviceId = deviceId
 		this.#cardGenerator = cardGenerator

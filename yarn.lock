@@ -326,20 +326,21 @@
     "@typescript-eslint/types" "4.29.1"
     eslint-visitor-keys "^2.0.0"
 
-"@xencelabs-quick-keys/core@0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@xencelabs-quick-keys/core/-/core-0.3.0.tgz#473a9a33d3cbe809559c109499cfb448b2aaea55"
-  integrity sha512-ENGCv5SZ8MtjD7+BojLfNiS4t/2k9S06ooipq2w1t1iqG03x95uSpZBgIArA4+TEw0tzACCssiqvY8LwlBJHCA==
+"@xencelabs-quick-keys/core@0.4.0-alpha.0":
+  version "0.4.0-alpha.0"
+  resolved "https://registry.yarnpkg.com/@xencelabs-quick-keys/core/-/core-0.4.0-alpha.0.tgz#b4fe7216e9d6ce4698e145c9e7369ac7011a47ca"
+  integrity sha512-WkB/2IP7lnrp6myVnPx7BgvZvVvNVeRMzVM0jmPdVM1FjZZ6qrS8ZIwmI4nzXyHw2o5wfqAuXHtf9KCdCyoYaw==
   dependencies:
     eventemitter3 "^4.0.7"
 
-"@xencelabs-quick-keys/node@^0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@xencelabs-quick-keys/node/-/node-0.3.0.tgz#45ed79b0c8aa9b8a2e1244edb39e668edc57769d"
-  integrity sha512-ap7MWYCuzzxzfilpa3pcNrswLyX8drT8aBi+qQNuH3yucX+vdK4dd+94I3p7zB2pxNo9AidrnHy+fvqIxYIvRA==
+"@xencelabs-quick-keys/node@^0.4.0-alpha.0":
+  version "0.4.0-alpha.0"
+  resolved "https://registry.yarnpkg.com/@xencelabs-quick-keys/node/-/node-0.4.0-alpha.0.tgz#34b8860d440b724ec3eb671012b83a180dcc110b"
+  integrity sha512-WiGByImqGpRNI/T+BKbExUmuTxzVc2ujUQdD2lyH8ItQYTiUAgdQTZtYElYusHCU91ySnuHfeOWcT/g/67RmdQ==
   dependencies:
-    "@xencelabs-quick-keys/core" "0.3.0"
+    "@xencelabs-quick-keys/core" "0.4.0-alpha.0"
     node-hid "^2.1.1"
+    usb "^2.0.0-alpha"
 
 JSONStream@^1.0.4:
   version "1.3.5"
@@ -4587,7 +4588,7 @@ url-parse-lax@^3.0.0:
   dependencies:
     prepend-http "^2.0.0"
 
-usb@^2.0.3:
+usb@^2.0.0-alpha, usb@^2.0.3:
   version "2.0.3"
   resolved "https://registry.yarnpkg.com/usb/-/usb-2.0.3.tgz#c8a420f9a02bcdf644790eb4fa46506065c16a0d"
   integrity sha512-UnUtZK5ebhDdNTjcO+cHFnpo25iifNm+E7F4f5g4pCUH+0M8b4SiVqILNzqz9iqQNK326PGawOYdkTJbplqsIg==
