@@ -1,4 +1,3 @@
-import EventEmitter = require('eventemitter3')
 import { CompanionSatelliteClient } from '../client'
 
 export type DeviceId = string
