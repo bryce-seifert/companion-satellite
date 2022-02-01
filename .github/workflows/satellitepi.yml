@@ -37,4 +37,4 @@ jobs:
           name: satellitepi
           if-no-files-found: error
           path: |
-            tools/satellitepi/output-satellitepi/*.img
+            pi-image/output-satellitepi/*.img
