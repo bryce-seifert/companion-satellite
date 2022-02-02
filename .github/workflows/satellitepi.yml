@@ -28,9 +28,7 @@ jobs:
       - name: shrink image
         run: |
           cd pi-image/output-satellitepi
-          wget https://raw.githubusercontent.com/Drewsif/PiShrink/43f1a885cd147638a0d1961753f711f838915b88/pishrink.sh
-          chmod +x pishrink.sh
-          ./pishrink.sh image
+          ./shrink.sh image
 
       - name: rename image
         run: |
