@@ -27,8 +27,8 @@ jobs:
 
       - name: shrink image
         run: |
-          cd pi-image/output-satellitepi
-          ./shrink.sh image
+          cd pi-image
+          ./shrink.sh output-satellitepi/image
 
       - name: rename image
         run: |
